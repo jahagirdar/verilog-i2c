@@ -1,0 +1,2 @@
+cocotbext-i2c @ git+https://github.com/alexforencich/cocotbext-i2c@master   
+cocotbext-axi
