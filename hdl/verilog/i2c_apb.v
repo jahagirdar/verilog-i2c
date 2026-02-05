@@ -34,8 +34,8 @@ module i2c_apb(
 );
 
 
-wire I2C_Reg_pkg::I2C_Reg__in_t hwif_in,
-wire I2C_Reg_pkg::I2C_Reg__out_t hwif_out
+ I2C_Reg_pkg::I2C_Reg__in_t hwif_in;
+ I2C_Reg_pkg::I2C_Reg__out_t hwif_out;
 
 I2C_Reg i2c_reg (
 .clk(clk),
