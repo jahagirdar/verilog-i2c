@@ -5,7 +5,7 @@ package I2C_Reg_pkg;
 
     localparam I2C_REG_DATA_WIDTH = 32;
     localparam I2C_REG_MIN_ADDR_WIDTH = 6;
-    localparam I2C_REG_SIZE = 'h2c;
+    localparam I2C_REG_SIZE = 'h24;
 
     typedef struct {
         logic next;
@@ -78,11 +78,16 @@ package I2C_Reg_pkg;
     } I2C_Reg__Commands__stop__out_t;
 
     typedef struct {
+        logic [6:0] value;
+    } I2C_Reg__Commands__addr__out_t;
+
+    typedef struct {
         I2C_Reg__Commands__start__out_t start;
         I2C_Reg__Commands__read__out_t read;
         I2C_Reg__Commands__write__out_t write;
         I2C_Reg__Commands__write_multiple__out_t write_multiple;
         I2C_Reg__Commands__stop__out_t stop;
+        I2C_Reg__Commands__addr__out_t addr;
     } I2C_Reg__Commands__out_t;
 
     typedef struct {
@@ -97,14 +102,6 @@ package I2C_Reg_pkg;
         I2C_Reg__Cfg__prescale__out_t prescale;
         I2C_Reg__Cfg__stop_on_idle__out_t stop_on_idle;
     } I2C_Reg__Cfg__out_t;
-
-    typedef struct {
-        logic [6:0] value;
-    } I2C_Reg__Address__addr__out_t;
-
-    typedef struct {
-        I2C_Reg__Address__addr__out_t addr;
-    } I2C_Reg__Address__out_t;
 
     typedef struct {
         logic [7:0] value;
@@ -122,7 +119,6 @@ package I2C_Reg_pkg;
     typedef struct {
         I2C_Reg__Commands__out_t Commands;
         I2C_Reg__Cfg__out_t Cfg;
-        I2C_Reg__Address__out_t Address;
         I2C_Reg__Wdata__out_t Wdata;
     } I2C_Reg__out_t;
 endpackage
