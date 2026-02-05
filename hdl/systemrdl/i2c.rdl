@@ -9,7 +9,7 @@ alignment=8;
 		field { sw=rw; hw=r; desc="TODO";} write[2:2]=0x0;
 		field { sw=rw; hw=r; desc="TODO";} write_multiple[3:3]=0x0;
 		field { sw=rw; hw=r; desc="TODO";} stop[4:4]=0x0;
-		field {sw=rw; hw=r; desc="Address";} addr[14:8]=0x0;
+		field {sw=rw; hw=r; desc="Address";} address[14:8]=0x0;
 	} Commands;
 	reg {
 		field {sw=r; hw=w; desc="Transaction ongoing";} busy[0:0]=0x0;

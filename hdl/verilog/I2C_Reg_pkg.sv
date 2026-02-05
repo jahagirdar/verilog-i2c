@@ -79,7 +79,7 @@ package I2C_Reg_pkg;
 
     typedef struct {
         logic [6:0] value;
-    } I2C_Reg__Commands__addr__out_t;
+    } I2C_Reg__Commands__address__out_t;
 
     typedef struct {
         I2C_Reg__Commands__start__out_t start;
@@ -87,7 +87,7 @@ package I2C_Reg_pkg;
         I2C_Reg__Commands__write__out_t write;
         I2C_Reg__Commands__write_multiple__out_t write_multiple;
         I2C_Reg__Commands__stop__out_t stop;
-        I2C_Reg__Commands__addr__out_t addr;
+        I2C_Reg__Commands__address__out_t address;
     } I2C_Reg__Commands__out_t;
 
     typedef struct {

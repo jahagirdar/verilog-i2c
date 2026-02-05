@@ -141,7 +141,7 @@ module I2C_Reg (
             struct {
                 logic [6:0] next;
                 logic load_next;
-            } addr;
+            } address;
         } Commands;
         struct {
             struct {
@@ -195,7 +195,7 @@ module I2C_Reg (
             } stop;
             struct {
                 logic [6:0] value;
-            } addr;
+            } address;
         } Commands;
         struct {
             struct {
@@ -339,29 +339,29 @@ module I2C_Reg (
         end
     end
     assign hwif_out.Commands.stop.value = field_storage.Commands.stop.value;
-    // Field: I2C_Reg.Commands.addr
+    // Field: I2C_Reg.Commands.address
     always_comb begin
         automatic logic [6:0] next_c;
         automatic logic load_next_c;
-        next_c = field_storage.Commands.addr.value;
+        next_c = field_storage.Commands.address.value;
         load_next_c = '0;
         if(decoded_reg_strb.Commands && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.Commands.addr.value & ~decoded_wr_biten[14:8]) | (decoded_wr_data[14:8] & decoded_wr_biten[14:8]);
+            next_c = (field_storage.Commands.address.value & ~decoded_wr_biten[14:8]) | (decoded_wr_data[14:8] & decoded_wr_biten[14:8]);
             load_next_c = '1;
         end
-        field_combo.Commands.addr.next = next_c;
-        field_combo.Commands.addr.load_next = load_next_c;
+        field_combo.Commands.address.next = next_c;
+        field_combo.Commands.address.load_next = load_next_c;
     end
     always_ff @(posedge clk or negedge arst_n) begin
         if(~arst_n) begin
-            field_storage.Commands.addr.value <= 7'h0;
+            field_storage.Commands.address.value <= 7'h0;
         end else begin
-            if(field_combo.Commands.addr.load_next) begin
-                field_storage.Commands.addr.value <= field_combo.Commands.addr.next;
+            if(field_combo.Commands.address.load_next) begin
+                field_storage.Commands.address.value <= field_combo.Commands.address.next;
             end
         end
     end
-    assign hwif_out.Commands.addr.value = field_storage.Commands.addr.value;
+    assign hwif_out.Commands.address.value = field_storage.Commands.address.value;
     // Field: I2C_Reg.Cfg.prescale
     always_comb begin
         automatic logic [15:0] next_c;
@@ -531,7 +531,7 @@ module I2C_Reg (
     assign readback_array[0][3:3] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.write_multiple.value : '0;
     assign readback_array[0][4:4] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.stop.value : '0;
     assign readback_array[0][7:5] = '0;
-    assign readback_array[0][14:8] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.addr.value : '0;
+    assign readback_array[0][14:8] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.address.value : '0;
     assign readback_array[0][31:15] = '0;
     assign readback_array[1][0:0] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.busy.next : '0;
     assign readback_array[1][1:1] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.bus_control.next : '0;
