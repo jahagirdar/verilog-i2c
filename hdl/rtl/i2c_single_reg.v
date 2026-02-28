@@ -107,7 +107,7 @@ always @(posedge clk) begin
     if (start_bit) begin
         sda_o_reg <= 1'b1;
 
-        bit_count_reg = 4'd7;
+        bit_count_reg <= 4'd7;
         state_reg <= STATE_ADDRESS;
     end else if (stop_bit) begin
         sda_o_reg <= 1'b1;
@@ -193,16 +193,16 @@ always @(posedge clk) begin
                 // read data byte
                 if (scl_negedge) begin
                     // shift out data bit
-                    {sda_o_reg, shift_reg} = {shift_reg, sda_i_reg};
+                    {sda_o_reg, shift_reg} <= {shift_reg, sda_i_reg};
 
                     if (bit_count_reg > 0) begin
-                        bit_count_reg = bit_count_reg-1;
-                        state_reg = STATE_READ_1;
+                        bit_count_reg <= bit_count_reg-1;
+                        state_reg <= STATE_READ_1;
                     end else begin
-                        state_reg = STATE_READ_2;
+                        state_reg <= STATE_READ_2;
                     end
                 end else begin
-                    state_reg = STATE_READ_1;
+                    state_reg <= STATE_READ_1;
                 end
             end
             STATE_READ_2: begin
