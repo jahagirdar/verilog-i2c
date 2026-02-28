@@ -259,6 +259,17 @@ always @(posedge clk) begin
     if (rst) begin
         state_reg <= STATE_IDLE;
         sda_o_reg <= 1'b1;
+	data_reg <=8'b0;
+	shift_reg <= 8'b0;
+	mode_read_reg <=1'b0;
+	bit_count_reg <= 1'b0;
+	scl_i_filter_reg <={FILTER_LEN{1'b1}};
+	sda_i_filter_reg <={FILTER_LEN{1'b1}};
+	scl_i_reg <= 1'b1;
+	sda_i_reg <= 1'b1;
+	sda_o_reg <= 1'b1;
+	last_scl_i_reg <= 1'b1;
+	last_sda_i_reg <= 1'b1;
     end
 end
 
