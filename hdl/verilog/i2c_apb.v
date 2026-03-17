@@ -27,11 +27,15 @@ module i2c_apb(
      */
     input  wire        i2c_scl_i,
     output wire        i2c_scl_o,
-    output wire        i2c_scl_t,
+    output wire        i2c_scl_oe,
     input  wire        i2c_sda_i,
     output wire        i2c_sda_o,
-    output wire        i2c_sda_t
+    output wire        i2c_sda_oe
 );
+
+wire i2c_sda_t, i2c_scl_t;
+wire i2c_scl_oe = ~i2c_scl_t;
+wire i2c_sda_oe = ~i2c_sda_t;
 
 
  I2C_Reg_pkg::I2C_Reg__in_t hwif_in;
