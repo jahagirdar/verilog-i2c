@@ -94,17 +94,23 @@ module I2C_Reg (
         logic Rdata;
     } decoded_reg_strb_t;
     decoded_reg_strb_t decoded_reg_strb;
+    logic decoded_err;
     logic decoded_req;
     logic decoded_req_is_wr;
     logic [31:0] decoded_wr_data;
     logic [31:0] decoded_wr_biten;
 
     always_comb begin
+        automatic logic is_valid_addr;
+        automatic logic is_invalid_rw;
+        is_valid_addr = '1; // No error checking on valid address access
+        is_invalid_rw = '0;
         decoded_reg_strb.Commands = cpuif_req_masked & (cpuif_addr == 6'h0);
-        decoded_reg_strb.Status = cpuif_req_masked & (cpuif_addr == 6'h8);
+        decoded_reg_strb.Status = cpuif_req_masked & (cpuif_addr == 6'h8) & !cpuif_req_is_wr;
         decoded_reg_strb.Cfg = cpuif_req_masked & (cpuif_addr == 6'h10);
-        decoded_reg_strb.Wdata = cpuif_req_masked & (cpuif_addr == 6'h18);
-        decoded_reg_strb.Rdata = cpuif_req_masked & (cpuif_addr == 6'h20);
+        decoded_reg_strb.Wdata = cpuif_req_masked & (cpuif_addr == 6'h18) & cpuif_req_is_wr;
+        decoded_reg_strb.Rdata = cpuif_req_masked & (cpuif_addr == 6'h20) & !cpuif_req_is_wr;
+        decoded_err = (~is_valid_addr | is_invalid_rw) & decoded_req;
     end
 
     // Pass down signals to next stage
@@ -139,6 +145,10 @@ module I2C_Reg (
                 logic load_next;
             } stop;
             struct {
+                logic next;
+                logic load_next;
+            } enq;
+            struct {
                 logic [6:0] next;
                 logic load_next;
             } address;
@@ -163,16 +173,6 @@ module I2C_Reg (
                 logic load_next;
             } wlast;
         } Wdata;
-        struct {
-            struct {
-                logic [7:0] next;
-                logic load_next;
-            } rdata;
-            struct {
-                logic next;
-                logic load_next;
-            } rlast;
-        } Rdata;
     } field_combo_t;
     field_combo_t field_combo;
 
@@ -194,6 +194,9 @@ module I2C_Reg (
                 logic value;
             } stop;
             struct {
+                logic value;
+            } enq;
+            struct {
                 logic [6:0] value;
             } address;
         } Commands;
@@ -213,14 +216,6 @@ module I2C_Reg (
                 logic value;
             } wlast;
         } Wdata;
-        struct {
-            struct {
-                logic [7:0] value;
-            } rdata;
-            struct {
-                logic value;
-            } rlast;
-        } Rdata;
     } field_storage_t;
     field_storage_t field_storage;
 
@@ -339,6 +334,32 @@ module I2C_Reg (
         end
     end
     assign hwif_out.Commands.stop.value = field_storage.Commands.stop.value;
+    // Field: I2C_Reg.Commands.enq
+    always_comb begin
+        automatic logic [0:0] next_c;
+        automatic logic load_next_c;
+        next_c = field_storage.Commands.enq.value;
+        load_next_c = '0;
+        if(decoded_reg_strb.Commands && decoded_req_is_wr) begin // SW write
+            next_c = (field_storage.Commands.enq.value & ~decoded_wr_biten[5:5]) | (decoded_wr_data[5:5] & decoded_wr_biten[5:5]);
+            load_next_c = '1;
+        end else begin // singlepulse clears back to 0
+            next_c = '0;
+            load_next_c = '1;
+        end
+        field_combo.Commands.enq.next = next_c;
+        field_combo.Commands.enq.load_next = load_next_c;
+    end
+    always_ff @(posedge clk or negedge arst_n) begin
+        if(~arst_n) begin
+            field_storage.Commands.enq.value <= 1'h0;
+        end else begin
+            if(field_combo.Commands.enq.load_next) begin
+                field_storage.Commands.enq.value <= field_combo.Commands.enq.next;
+            end
+        end
+    end
+    assign hwif_out.Commands.enq.value = field_storage.Commands.enq.value;
     // Field: I2C_Reg.Commands.address
     always_comb begin
         automatic logic [6:0] next_c;
@@ -431,6 +452,7 @@ module I2C_Reg (
         end
     end
     assign hwif_out.Wdata.wdata.value = field_storage.Wdata.wdata.value;
+    assign hwif_out.Wdata.wdata.swmod = decoded_reg_strb.Wdata && decoded_req_is_wr && |(decoded_wr_biten[7:0]);
     // Field: I2C_Reg.Wdata.wlast
     always_comb begin
         automatic logic [0:0] next_c;
@@ -439,9 +461,6 @@ module I2C_Reg (
         load_next_c = '0;
         if(decoded_reg_strb.Wdata && decoded_req_is_wr) begin // SW write
             next_c = (field_storage.Wdata.wlast.value & ~decoded_wr_biten[8:8]) | (decoded_wr_data[8:8] & decoded_wr_biten[8:8]);
-            load_next_c = '1;
-        end else begin // HW Write
-            next_c = hwif_in.Wdata.wlast.next;
             load_next_c = '1;
         end
         field_combo.Wdata.wlast.next = next_c;
@@ -457,56 +476,7 @@ module I2C_Reg (
         end
     end
     assign hwif_out.Wdata.wlast.value = field_storage.Wdata.wlast.value;
-    // Field: I2C_Reg.Rdata.rdata
-    always_comb begin
-        automatic logic [7:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.Rdata.rdata.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.Rdata && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.Rdata.rdata.value & ~decoded_wr_biten[7:0]) | (decoded_wr_data[7:0] & decoded_wr_biten[7:0]);
-            load_next_c = '1;
-        end else begin // HW Write
-            next_c = hwif_in.Rdata.rdata.next;
-            load_next_c = '1;
-        end
-        field_combo.Rdata.rdata.next = next_c;
-        field_combo.Rdata.rdata.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.Rdata.rdata.value <= 8'h0;
-        end else begin
-            if(field_combo.Rdata.rdata.load_next) begin
-                field_storage.Rdata.rdata.value <= field_combo.Rdata.rdata.next;
-            end
-        end
-    end
-    // Field: I2C_Reg.Rdata.rlast
-    always_comb begin
-        automatic logic [0:0] next_c;
-        automatic logic load_next_c;
-        next_c = field_storage.Rdata.rlast.value;
-        load_next_c = '0;
-        if(decoded_reg_strb.Rdata && decoded_req_is_wr) begin // SW write
-            next_c = (field_storage.Rdata.rlast.value & ~decoded_wr_biten[8:8]) | (decoded_wr_data[8:8] & decoded_wr_biten[8:8]);
-            load_next_c = '1;
-        end else begin // HW Write
-            next_c = hwif_in.Rdata.rlast.next;
-            load_next_c = '1;
-        end
-        field_combo.Rdata.rlast.next = next_c;
-        field_combo.Rdata.rlast.load_next = load_next_c;
-    end
-    always_ff @(posedge clk or negedge arst_n) begin
-        if(~arst_n) begin
-            field_storage.Rdata.rlast.value <= 1'h0;
-        end else begin
-            if(field_combo.Rdata.rlast.load_next) begin
-                field_storage.Rdata.rlast.value <= field_combo.Rdata.rlast.next;
-            end
-        end
-    end
+    assign hwif_out.Rdata.rdata.swacc = decoded_reg_strb.Rdata;
 
     //--------------------------------------------------------------------------
     // Write response
@@ -524,29 +494,31 @@ module I2C_Reg (
     logic [31:0] readback_data;
 
     // Assign readback values to a flattened array
-    logic [31:0] readback_array[5];
+    logic [31:0] readback_array[4];
     assign readback_array[0][0:0] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.start.value : '0;
     assign readback_array[0][1:1] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.read.value : '0;
     assign readback_array[0][2:2] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.write.value : '0;
     assign readback_array[0][3:3] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.write_multiple.value : '0;
     assign readback_array[0][4:4] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.stop.value : '0;
-    assign readback_array[0][7:5] = '0;
+    assign readback_array[0][5:5] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.enq.value : '0;
+    assign readback_array[0][7:6] = '0;
     assign readback_array[0][14:8] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.address.value : '0;
     assign readback_array[0][31:15] = '0;
     assign readback_array[1][0:0] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.busy.next : '0;
     assign readback_array[1][1:1] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.bus_control.next : '0;
     assign readback_array[1][2:2] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.bus_active.next : '0;
     assign readback_array[1][3:3] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.missed_ack.next : '0;
-    assign readback_array[1][31:4] = '0;
+    assign readback_array[1][4:4] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.cmd_ff_n_full.next : '0;
+    assign readback_array[1][5:5] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.tx_ff_n_full.next : '0;
+    assign readback_array[1][6:6] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.rx_ff_n_full.next : '0;
+    assign readback_array[1][7:7] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.rx_overflow.next : '0;
+    assign readback_array[1][31:8] = '0;
     assign readback_array[2][15:0] = (decoded_reg_strb.Cfg && !decoded_req_is_wr) ? field_storage.Cfg.prescale.value : '0;
     assign readback_array[2][16:16] = (decoded_reg_strb.Cfg && !decoded_req_is_wr) ? field_storage.Cfg.stop_on_idle.value : '0;
     assign readback_array[2][31:17] = '0;
-    assign readback_array[3][7:0] = (decoded_reg_strb.Wdata && !decoded_req_is_wr) ? field_storage.Wdata.wdata.value : '0;
-    assign readback_array[3][8:8] = (decoded_reg_strb.Wdata && !decoded_req_is_wr) ? field_storage.Wdata.wlast.value : '0;
+    assign readback_array[3][7:0] = (decoded_reg_strb.Rdata && !decoded_req_is_wr) ? hwif_in.Rdata.rdata.next : '0;
+    assign readback_array[3][8:8] = (decoded_reg_strb.Rdata && !decoded_req_is_wr) ? hwif_in.Rdata.rlast.next : '0;
     assign readback_array[3][31:9] = '0;
-    assign readback_array[4][7:0] = (decoded_reg_strb.Rdata && !decoded_req_is_wr) ? field_storage.Rdata.rdata.value : '0;
-    assign readback_array[4][8:8] = (decoded_reg_strb.Rdata && !decoded_req_is_wr) ? field_storage.Rdata.rlast.value : '0;
-    assign readback_array[4][31:9] = '0;
 
     // Reduce the array
     always_comb begin
@@ -554,7 +526,7 @@ module I2C_Reg (
         readback_done = decoded_req & ~decoded_req_is_wr;
         readback_err = '0;
         readback_data_var = '0;
-        for(int i=0; i<5; i++) readback_data_var |= readback_array[i];
+        for(int i=0; i<4; i++) readback_data_var |= readback_array[i];
         readback_data = readback_data_var;
     end
 

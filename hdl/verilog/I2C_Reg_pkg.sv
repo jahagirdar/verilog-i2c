@@ -24,19 +24,31 @@ package I2C_Reg_pkg;
     } I2C_Reg__Status__missed_ack__in_t;
 
     typedef struct {
+        logic next;
+    } I2C_Reg__Status__cmd_ff_n_full__in_t;
+
+    typedef struct {
+        logic next;
+    } I2C_Reg__Status__tx_ff_n_full__in_t;
+
+    typedef struct {
+        logic next;
+    } I2C_Reg__Status__rx_ff_n_full__in_t;
+
+    typedef struct {
+        logic next;
+    } I2C_Reg__Status__rx_overflow__in_t;
+
+    typedef struct {
         I2C_Reg__Status__busy__in_t busy;
         I2C_Reg__Status__bus_control__in_t bus_control;
         I2C_Reg__Status__bus_active__in_t bus_active;
         I2C_Reg__Status__missed_ack__in_t missed_ack;
+        I2C_Reg__Status__cmd_ff_n_full__in_t cmd_ff_n_full;
+        I2C_Reg__Status__tx_ff_n_full__in_t tx_ff_n_full;
+        I2C_Reg__Status__rx_ff_n_full__in_t rx_ff_n_full;
+        I2C_Reg__Status__rx_overflow__in_t rx_overflow;
     } I2C_Reg__Status__in_t;
-
-    typedef struct {
-        logic next;
-    } I2C_Reg__Wdata__wlast__in_t;
-
-    typedef struct {
-        I2C_Reg__Wdata__wlast__in_t wlast;
-    } I2C_Reg__Wdata__in_t;
 
     typedef struct {
         logic [7:0] next;
@@ -53,7 +65,6 @@ package I2C_Reg_pkg;
 
     typedef struct {
         I2C_Reg__Status__in_t Status;
-        I2C_Reg__Wdata__in_t Wdata;
         I2C_Reg__Rdata__in_t Rdata;
     } I2C_Reg__in_t;
 
@@ -78,6 +89,10 @@ package I2C_Reg_pkg;
     } I2C_Reg__Commands__stop__out_t;
 
     typedef struct {
+        logic value;
+    } I2C_Reg__Commands__enq__out_t;
+
+    typedef struct {
         logic [6:0] value;
     } I2C_Reg__Commands__address__out_t;
 
@@ -87,6 +102,7 @@ package I2C_Reg_pkg;
         I2C_Reg__Commands__write__out_t write;
         I2C_Reg__Commands__write_multiple__out_t write_multiple;
         I2C_Reg__Commands__stop__out_t stop;
+        I2C_Reg__Commands__enq__out_t enq;
         I2C_Reg__Commands__address__out_t address;
     } I2C_Reg__Commands__out_t;
 
@@ -105,6 +121,7 @@ package I2C_Reg_pkg;
 
     typedef struct {
         logic [7:0] value;
+        logic swmod;
     } I2C_Reg__Wdata__wdata__out_t;
 
     typedef struct {
@@ -117,8 +134,17 @@ package I2C_Reg_pkg;
     } I2C_Reg__Wdata__out_t;
 
     typedef struct {
+        logic swacc;
+    } I2C_Reg__Rdata__rdata__out_t;
+
+    typedef struct {
+        I2C_Reg__Rdata__rdata__out_t rdata;
+    } I2C_Reg__Rdata__out_t;
+
+    typedef struct {
         I2C_Reg__Commands__out_t Commands;
         I2C_Reg__Cfg__out_t Cfg;
         I2C_Reg__Wdata__out_t Wdata;
+        I2C_Reg__Rdata__out_t Rdata;
     } I2C_Reg__out_t;
 endpackage

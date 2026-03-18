@@ -34,8 +34,8 @@ module i2c_apb(
 );
 
 wire i2c_sda_t, i2c_scl_t;
-wire i2c_scl_oe = ~i2c_scl_t;
-wire i2c_sda_oe = ~i2c_sda_t;
+assign i2c_scl_oe = ~i2c_scl_t;
+assign i2c_sda_oe = ~i2c_sda_t;
 
 
  I2C_Reg_pkg::I2C_Reg__in_t hwif_in;
@@ -59,10 +59,68 @@ I2C_Reg i2c_reg (
 .hwif_out(hwif_out)
 );
 
+    wire [12:0] cmd_ff_din = {hwif_out.Commands.address.value,
+    hwif_out.Commands.start.value,
+    hwif_out.Commands.read.value,
+    hwif_out.Commands.write.value,
+    hwif_out.Commands.write_multiple.value,
+    hwif_out.Commands.stop.value};
+    wire [7:0] cmd_ff_dout_address;
+    wire cmd_ff_dout_start;
+    wire cmd_ff_dout_read;
+    wire cmd_ff_dout_write;
+    wire cmd_ff_dout_write_multiple;
+    wire cmd_ff_dout_stop;
+FIFO2#(.width(13)) cmd_fifo(
+.CLK(clk),
+.RST(arst_n),
+.D_IN(cmd_ff_din),
+.ENQ(hwif_out.Commands.enq.value),
+.FULL_N(hwif_in.Status.cmd_ff_n_full.next),
+.D_OUT( {
+    cmd_ff_dout_address,
+    cmd_ff_dout_start,
+    cmd_ff_dout_read,
+    cmd_ff_dout_write,
+    cmd_ff_dout_write_multiple,
+    cmd_ff_dout_stop }
+),
+.DEQ(cmd_ff_deq),
+.EMPTY_N(cmd_ff_empty_n),
+.CLR(1'b0)
+);
+
+wire tx_last;
+wire [7:0] tx_data;
+FIFO2#(.width(9)) Tx_fifo(
+.CLK(clk),
+.RST(arst_n),
+.D_IN({hwif_out.Wdata.wlast.value,hwif_out.Wdata.wdata.value}),
+.ENQ(hwif_out.Wdata.wdata.swmod),
+.FULL_N(hwif_in.Status.tx_ff_n_full.next),
+.D_OUT( { tx_last,tx_data }),
+.DEQ(tx_ff_deq),
+.EMPTY_N(tx_ff_empty_n),
+.CLR(1'b0)
+);
+
+wire rx_last;
+wire [7:0] rx_data;
+FIFO2#(.width(9)) Rx_fifo(
+.CLK(clk),
+.RST(arst_n),
+.D_IN({rx_last,rx_data}),
+.ENQ(rx_enq),
+.FULL_N(rx_full_n),
+.D_OUT({hwif_in.Rdata.rlast.next,hwif_in.Rdata.rdata.next}),
+.DEQ(hwif_out.Rdata.rdata.swacc),
+.EMPTY_N(hwif_in.Status.rx_ff_n_full.next),
+.CLR(1'b0)
+);
+assign hwif_in.Status.rx_overflow.next= rx_enq && !rx_full_n;
 i2c_master i2c_master (
     .clk(clk),
     .rst(!arst_n),
-
     /*
      * Host interface
      */
@@ -72,18 +130,18 @@ i2c_master i2c_master (
     .s_axis_cmd_write(hwif_out.Commands.write.value),
     .s_axis_cmd_write_multiple(hwif_out.Commands.write_multiple.value),
     .s_axis_cmd_stop(hwif_out.Commands.stop.value),
-    .s_axis_cmd_valid(), // TODO
-    .s_axis_cmd_ready(), // TODO
+    .s_axis_cmd_valid(cmd_ff_empty_n),
+    .s_axis_cmd_ready(cmd_ff_deq),
 
-    .s_axis_data_tdata(hwif_out.Wdata.wdata.value),
-    .s_axis_data_tvalid(),
-    .s_axis_data_tready(),
-    .s_axis_data_tlast(),
+    .s_axis_data_tdata(tx_data),
+    .s_axis_data_tvalid(tx_ff_empty_n),
+    .s_axis_data_tready(tx_ff_deq),
+    .s_axis_data_tlast(tx_last),
 
-    .m_axis_data_tdata(hwif_in.Rdata.rdata.next),
-    .m_axis_data_tvalid(),
-    .m_axis_data_tready(),
-    .m_axis_data_tlast(),
+    .m_axis_data_tdata(rx_data),
+    .m_axis_data_tvalid(rx_enq),
+    .m_axis_data_tready(rx_full_n),
+    .m_axis_data_tlast(rx_last),
 
     /*
      * I2C interface
