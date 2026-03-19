@@ -85,10 +85,16 @@ FIFO2#(.width(13)) cmd_fifo(
     cmd_ff_dout_write_multiple,
     cmd_ff_dout_stop }
 ),
-.DEQ(cmd_ff_deq),
+.DEQ(cmd_ff_deq && cmd_ff_empty_n),
 .EMPTY_N(cmd_ff_empty_n),
 .CLR(1'b0)
 );
+
+reg tx_fifo_enq, rx_fifo_deq;
+always @(posedge clk)begin
+tx_fifo_enq <= hwif_out.Wdata.wdata.swmod;
+rx_fifo_deq <= hwif_out.Rdata.rdata.swacc;
+end
 
 wire tx_last;
 wire [7:0] tx_data;
@@ -96,16 +102,19 @@ FIFO2#(.width(9)) Tx_fifo(
 .CLK(clk),
 .RST(arst_n),
 .D_IN({hwif_out.Wdata.wlast.value,hwif_out.Wdata.wdata.value}),
-.ENQ(hwif_out.Wdata.wdata.swmod),
+.ENQ(tx_fifo_enq),
 .FULL_N(hwif_in.Status.tx_ff_n_full.next),
 .D_OUT( { tx_last,tx_data }),
-.DEQ(tx_ff_deq),
+.DEQ(tx_ff_deq && tx_ff_empty_n),
 .EMPTY_N(tx_ff_empty_n),
 .CLR(1'b0)
 );
 
 wire rx_last;
 wire [7:0] rx_data;
+wire rx_ff_empty;
+assign hwif_in.Status.rx_ff_n_full.next = rx_ff_empty;
+
 FIFO2#(.width(9)) Rx_fifo(
 .CLK(clk),
 .RST(arst_n),
@@ -113,8 +122,8 @@ FIFO2#(.width(9)) Rx_fifo(
 .ENQ(rx_enq),
 .FULL_N(rx_full_n),
 .D_OUT({hwif_in.Rdata.rlast.next,hwif_in.Rdata.rdata.next}),
-.DEQ(hwif_out.Rdata.rdata.swacc),
-.EMPTY_N(hwif_in.Status.rx_ff_n_full.next),
+.DEQ(rx_fifo_deq && rx_ff_empty),
+.EMPTY_N(rx_ff_empty),
 .CLR(1'b0)
 );
 assign hwif_in.Status.rx_overflow.next= rx_enq && !rx_full_n;
