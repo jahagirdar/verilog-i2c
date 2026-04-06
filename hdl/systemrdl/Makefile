@@ -7,3 +7,5 @@
 #
 i2c:
 	peakrdl regblock --cpuif apb4-flat --default-reset arst_n i2c.rdl -o ../verilog
+rdl:
+	peakrdl python --async -o ../../cocotb/ral i2c.rdl

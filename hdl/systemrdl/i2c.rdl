@@ -16,7 +16,7 @@ alignment=8;
 		field {sw=r; hw=w; desc="Transaction ongoing";} busy[0:0]=0x0;
 		field {sw=r; hw=w; desc="Transaction ongoing";} bus_control[1:1]=0x0;
 		field {sw=r; hw=w; desc="Transaction ongoing";} bus_active[2:2]=0x0;
-		field {sw=r; hw=w; desc="Transaction ongoing";} missed_ack[3:3]=0x0;
+		field {sw=r;rclr; hw=na;hwset; desc="Transaction ongoing";} missed_ack[3:3]=0x0;
     field {sw=r; hw=w; desc= "cmd_ff not Full";} cmd_ff_n_full[4:4];
     field {sw=r; hw=w; desc= "tx_ff not Full";} tx_ff_n_full[5:5];
     field {sw=r; hw=w; desc= "rx_ff not Full";} rx_ff_n_full[6:6];

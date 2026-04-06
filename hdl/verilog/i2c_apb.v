@@ -168,7 +168,7 @@ i2c_master i2c_master (
    .busy(hwif_in.Status.busy.next),
    .bus_control(hwif_in.Status.bus_control.next),
    .bus_active(hwif_in.Status.bus_active.next),
-   .missed_ack(hwif_in.Status.missed_ack.next),
+   .missed_ack(hwif_in.Status.missed_ack.hwset),
 
     /*
      * Configuration

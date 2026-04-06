@@ -95,6 +95,7 @@ module I2C_Reg (
     } decoded_reg_strb_t;
     decoded_reg_strb_t decoded_reg_strb;
     logic decoded_err;
+    logic [5:0] decoded_addr;
     logic decoded_req;
     logic decoded_req_is_wr;
     logic [31:0] decoded_wr_data;
@@ -102,18 +103,19 @@ module I2C_Reg (
 
     always_comb begin
         automatic logic is_valid_addr;
-        automatic logic is_invalid_rw;
-        is_valid_addr = '1; // No error checking on valid address access
-        is_invalid_rw = '0;
+        automatic logic is_valid_rw;
+        is_valid_addr = '1; // No valid address check
+        is_valid_rw = '1; // No valid RW check
         decoded_reg_strb.Commands = cpuif_req_masked & (cpuif_addr == 6'h0);
         decoded_reg_strb.Status = cpuif_req_masked & (cpuif_addr == 6'h8) & !cpuif_req_is_wr;
         decoded_reg_strb.Cfg = cpuif_req_masked & (cpuif_addr == 6'h10);
         decoded_reg_strb.Wdata = cpuif_req_masked & (cpuif_addr == 6'h18) & cpuif_req_is_wr;
         decoded_reg_strb.Rdata = cpuif_req_masked & (cpuif_addr == 6'h20) & !cpuif_req_is_wr;
-        decoded_err = (~is_valid_addr | is_invalid_rw) & decoded_req;
+        decoded_err = '0;
     end
 
     // Pass down signals to next stage
+    assign decoded_addr = cpuif_addr;
     assign decoded_req = cpuif_req_masked;
     assign decoded_req_is_wr = cpuif_req_is_wr;
     assign decoded_wr_data = cpuif_wr_data;
@@ -153,6 +155,12 @@ module I2C_Reg (
                 logic load_next;
             } address;
         } Commands;
+        struct {
+            struct {
+                logic next;
+                logic load_next;
+            } missed_ack;
+        } Status;
         struct {
             struct {
                 logic [15:0] next;
@@ -200,6 +208,11 @@ module I2C_Reg (
                 logic [6:0] value;
             } address;
         } Commands;
+        struct {
+            struct {
+                logic value;
+            } missed_ack;
+        } Status;
         struct {
             struct {
                 logic [15:0] value;
@@ -383,6 +396,31 @@ module I2C_Reg (
         end
     end
     assign hwif_out.Commands.address.value = field_storage.Commands.address.value;
+    // Field: I2C_Reg.Status.missed_ack
+    always_comb begin
+        automatic logic [0:0] next_c;
+        automatic logic load_next_c;
+        next_c = field_storage.Status.missed_ack.value;
+        load_next_c = '0;
+        if(decoded_reg_strb.Status && !decoded_req_is_wr) begin // SW clear on read
+            next_c = '0;
+            load_next_c = '1;
+        end else if(hwif_in.Status.missed_ack.hwset) begin // HW Set
+            next_c = '1;
+            load_next_c = '1;
+        end
+        field_combo.Status.missed_ack.next = next_c;
+        field_combo.Status.missed_ack.load_next = load_next_c;
+    end
+    always_ff @(posedge clk or negedge arst_n) begin
+        if(~arst_n) begin
+            field_storage.Status.missed_ack.value <= 1'h0;
+        end else begin
+            if(field_combo.Status.missed_ack.load_next) begin
+                field_storage.Status.missed_ack.value <= field_combo.Status.missed_ack.next;
+            end
+        end
+    end
     // Field: I2C_Reg.Cfg.prescale
     always_comb begin
         automatic logic [15:0] next_c;
@@ -489,45 +527,45 @@ module I2C_Reg (
     // Readback
     //--------------------------------------------------------------------------
 
+    logic [5:0] rd_mux_addr;
+    assign rd_mux_addr = decoded_addr;
+
     logic readback_err;
     logic readback_done;
     logic [31:0] readback_data;
-
-    // Assign readback values to a flattened array
-    logic [31:0] readback_array[4];
-    assign readback_array[0][0:0] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.start.value : '0;
-    assign readback_array[0][1:1] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.read.value : '0;
-    assign readback_array[0][2:2] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.write.value : '0;
-    assign readback_array[0][3:3] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.write_multiple.value : '0;
-    assign readback_array[0][4:4] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.stop.value : '0;
-    assign readback_array[0][5:5] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.enq.value : '0;
-    assign readback_array[0][7:6] = '0;
-    assign readback_array[0][14:8] = (decoded_reg_strb.Commands && !decoded_req_is_wr) ? field_storage.Commands.address.value : '0;
-    assign readback_array[0][31:15] = '0;
-    assign readback_array[1][0:0] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.busy.next : '0;
-    assign readback_array[1][1:1] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.bus_control.next : '0;
-    assign readback_array[1][2:2] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.bus_active.next : '0;
-    assign readback_array[1][3:3] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.missed_ack.next : '0;
-    assign readback_array[1][4:4] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.cmd_ff_n_full.next : '0;
-    assign readback_array[1][5:5] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.tx_ff_n_full.next : '0;
-    assign readback_array[1][6:6] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.rx_ff_n_full.next : '0;
-    assign readback_array[1][7:7] = (decoded_reg_strb.Status && !decoded_req_is_wr) ? hwif_in.Status.rx_overflow.next : '0;
-    assign readback_array[1][31:8] = '0;
-    assign readback_array[2][15:0] = (decoded_reg_strb.Cfg && !decoded_req_is_wr) ? field_storage.Cfg.prescale.value : '0;
-    assign readback_array[2][16:16] = (decoded_reg_strb.Cfg && !decoded_req_is_wr) ? field_storage.Cfg.stop_on_idle.value : '0;
-    assign readback_array[2][31:17] = '0;
-    assign readback_array[3][7:0] = (decoded_reg_strb.Rdata && !decoded_req_is_wr) ? hwif_in.Rdata.rdata.next : '0;
-    assign readback_array[3][8:8] = (decoded_reg_strb.Rdata && !decoded_req_is_wr) ? hwif_in.Rdata.rlast.next : '0;
-    assign readback_array[3][31:9] = '0;
-
-    // Reduce the array
     always_comb begin
         automatic logic [31:0] readback_data_var;
+        readback_data_var = '0;
+        if(rd_mux_addr == 6'h0) begin
+            readback_data_var[0] = field_storage.Commands.start.value;
+            readback_data_var[1] = field_storage.Commands.read.value;
+            readback_data_var[2] = field_storage.Commands.write.value;
+            readback_data_var[3] = field_storage.Commands.write_multiple.value;
+            readback_data_var[4] = field_storage.Commands.stop.value;
+            readback_data_var[5] = field_storage.Commands.enq.value;
+            readback_data_var[14:8] = field_storage.Commands.address.value;
+        end
+        if(rd_mux_addr == 6'h8) begin
+            readback_data_var[0] = hwif_in.Status.busy.next;
+            readback_data_var[1] = hwif_in.Status.bus_control.next;
+            readback_data_var[2] = hwif_in.Status.bus_active.next;
+            readback_data_var[3] = field_storage.Status.missed_ack.value;
+            readback_data_var[4] = hwif_in.Status.cmd_ff_n_full.next;
+            readback_data_var[5] = hwif_in.Status.tx_ff_n_full.next;
+            readback_data_var[6] = hwif_in.Status.rx_ff_n_full.next;
+            readback_data_var[7] = hwif_in.Status.rx_overflow.next;
+        end
+        if(rd_mux_addr == 6'h10) begin
+            readback_data_var[15:0] = field_storage.Cfg.prescale.value;
+            readback_data_var[16] = field_storage.Cfg.stop_on_idle.value;
+        end
+        if(rd_mux_addr == 6'h20) begin
+            readback_data_var[7:0] = hwif_in.Rdata.rdata.next;
+            readback_data_var[8] = hwif_in.Rdata.rlast.next;
+        end
+        readback_data = readback_data_var;
         readback_done = decoded_req & ~decoded_req_is_wr;
         readback_err = '0;
-        readback_data_var = '0;
-        for(int i=0; i<4; i++) readback_data_var |= readback_array[i];
-        readback_data = readback_data_var;
     end
 
     assign cpuif_rd_ack = readback_done;
