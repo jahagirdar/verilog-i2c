@@ -20,7 +20,7 @@ package I2C_Reg_pkg;
     } I2C_Reg__Status__bus_active__in_t;
 
     typedef struct {
-        logic next;
+        logic hwset;
     } I2C_Reg__Status__missed_ack__in_t;
 
     typedef struct {
